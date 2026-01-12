@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Sistema QR Pro</title>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(20px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+@keyframes pulse {
+  0% { transform:scale(1); }
+  50% { transform:scale(1.03); }
+  100% { transform:scale(1); }
+}
+
+:root{
+  --primary:#38bdf8;
+  --secondary:#22c55e;
+  --bg:linear-gradient(160deg,#020617,#020617,#020617);
+  --card-bg:rgba(30,41,59,.75);
+  --blur:blur(10px);
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  font-family:system-ui, -apple-system, BlinkMacSystemFont;
+  background:var(--bg);
+  color:white;
+}
+
+header{
+  padding:18px;
+  text-align:center;
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:.5px;
+}
+
+.container{
+  padding:16px;
+  max-width:520px;
+  margin:auto;
+}
+
+.card{
+  background:var(--card-bg);
+  backdrop-filter:var(--blur);
+  border-radius:20px;
+  padding:18px;
+  margin-bottom:18px;
+  animation:fadeUp .6s ease;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+
+h3{
+  margin-top:0;
+  margin-bottom:10px;
+}
+
+input,button{
+  width:100%;
+  padding:14px;
+  border-radius:14px;
+  border:none;
+  margin-top:8px;
+  font-size:16px;
+}
+
+input{
+  background:#020617;
+  color:white;
+}
+
+button{
+  background:var(--primary);
+  color:#020617;
+  font-weight:700;
+  transition:.2s;
+}
+
+button:active{
+  transform:scale(.96);
+}
+
+button:hover{
+  animation:pulse .8s infinite;
+}
+
+.hidden{display:none}
+
+#qrcode{
+  display:flex;
+  justify-content:center;
+  margin-top:16px;
+}
+
+#reader{
+  border-radius:16px;
+  overflow:hidden;
+  margin-top:10px;
+}
+
+.info p{
+  margin:6px 0;
+}
+
+table{
+  width:100%;
+  font-size:14px;
+  margin-top:10px;
+}
+
+th{
+  text-align:left;
+  opacity:.7;
+}
+
+td,th{
+  padding:6px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+
+.badge{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:12px;
+  background:var(--secondary);
+  color:black;
+  font-size:12px;
+  font-weight:700;
+}
+</style>
+</head>
+
+<body>
+
+<header>✨ Sistema QR Profesional</header>
+
+<div class="container">
+
+<!-- PERFIL -->
+<div class="card">
+<h3>👤 Crear Perfil</h3>
+<input id="nombre" placeholder="Nombre completo">
+<input id="direccion" placeholder="Dónde vives">
+<input id="telefono" placeholder="Teléfono personal">
+<input id="telefonoPadres" placeholder="Teléfono de padres">
+<button onclick="crearPerfil()">Crear Perfil</button>
+<div id="qrcode"></div>
+</div>
+
+<!-- LOGIN -->
+<div class="card">
+<h3>🔐 Acceso Admin</h3>
+<input id="adminUser" placeholder="Usuario">
+<input id="adminPass" type="password" placeholder="Contraseña">
+<button onclick="loginAdmin()">Entrar</button>
+</div>
+
+<!-- PANEL -->
+<div id="adminPanel" class="hidden card">
+<h3>📷 Escanear QR</h3>
+<div id="reader"></div>
+
+<h3>📋 Información</h3>
+<div class="info" id="info"></div>
+
+<h3>📊 Asistencia</h3>
+<table>
+<thead>
+<tr>
+<th>Nombre</th>
+<th>Fecha</th>
+<th>Hora</th>
+<th>Admin</th>
+</tr>
+</thead>
+<tbody id="tablaAsistencia"></tbody>
+</table>
+
+<button onclick="exportarPDF()">📄 Exportar PDF</button>
+</div>
+
+</div>
+
+<script>
+// ===== ADMINS =====
+const admins=[
+ {user:"admin1",pass:"1234",nombre:"Juan Pérez"},
+ {user:"admin2",pass:"5678",nombre:"María López"}
+];
+let adminActivo=null;
+
+// ===== PERFIL =====
+function crearPerfil(){
+ const id="USR-"+Date.now();
+ const u={
+  id,
+  nombre:nombre.value,
+  direccion:direccion.value,
+  telefono:telefono.value,
+  telefonoPadres:telefonoPadres.value
+ };
+ localStorage.setItem(id,JSON.stringify(u));
+ qrcode.innerHTML="";
+ new QRCode(qrcode,{text:id,width:180,height:180});
+}
+
+// ===== LOGIN =====
+function loginAdmin(){
+ const a=admins.find(x=>x.user===adminUser.value && x.pass===adminPass.value);
+ if(!a){alert("Acceso denegado");return;}
+ adminActivo=a.nombre;
+ adminPanel.classList.remove("hidden");
+ iniciarScanner();
+ cargarAsistencia();
+}
+
+// ===== SCAN =====
+function iniciarScanner(){
+ const s=new Html5Qrcode("reader");
+ s.start({facingMode:"environment"},{fps:10,qrbox:220},qr=>procesarQR(qr));
+}
+
+// ===== QR =====
+function procesarQR(id){
+ const d=localStorage.getItem(id);
+ if(!d)return;
+ const u=JSON.parse(d);
+ info.innerHTML=`
+ <p><b>Nombre:</b> ${u.nombre}</p>
+ <p><b>Dirección:</b> ${u.direccion}</p>
+ <p><b>Teléfono:</b> ${u.telefono}</p>
+ <p><b>Padres:</b> ${u.telefonoPadres}</p>
+ <span class="badge">Registrado</span>
+ `;
+ registrarAsistencia(u.nombre);
+}
+
+// ===== ASISTENCIA =====
+function registrarAsistencia(nombre){
+ const n=new Date();
+ const r={
+  nombre,
+  fecha:n.toLocaleDateString(),
+  hora:n.toLocaleTimeString(),
+  admin:adminActivo
+ };
+ const l=JSON.parse(localStorage.getItem("asistencia"))||[];
+ l.push(r);
+ localStorage.setItem("asistencia",JSON.stringify(l));
+ cargarAsistencia();
+}
+
+function cargarAsistencia(){
+ const l=JSON.parse(localStorage.getItem("asistencia"))||[];
+ tablaAsistencia.innerHTML="";
+ l.forEach(r=>{
+  tablaAsistencia.innerHTML+=`
+   <tr>
+    <td>${r.nombre}</td>
+    <td>${r.fecha}</td>
+    <td>${r.hora}</td>
+    <td>${r.admin}</td>
+   </tr>`;
+ });
+}
+
+// ===== PDF =====
+function exportarPDF(){
+ const {jsPDF}=window.jspdf;
+ const doc=new jsPDF();
+ const l=JSON.parse(localStorage.getItem("asistencia"))||[];
+
+ doc.setFontSize(16);
+ doc.text("Informe de Asistencia",14,15);
+ doc.setFontSize(10);
+ doc.text("Generado: "+new Date().toLocaleString(),14,22);
+
+ let y=35;
+ doc.setFontSize(12);
+ doc.text("Nombre",14,y);
+ doc.text("Fecha",70,y);
+ doc.text("Hora",110,y);
+ doc.text("Admin",150,y);
+
+ y+=6; doc.line(14,y,195,y); y+=6;
+
+ l.forEach(r=>{
+  if(y>280){doc.addPage();y=20;}
+  doc.text(r.nombre,14,y);
+  doc.text(r.fecha,70,y);
+  doc.text(r.hora,110,y);
+  doc.text(r.admin,150,y);
+  y+=8;
+ });
+
+ doc.save("asistencia.pdf");
+}
+</script>
+
+</body>
+</html>
